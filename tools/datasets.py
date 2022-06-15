@@ -13,6 +13,8 @@ from tqdm.autonotebook import tqdm
 
 training_datasets = ['C10', 'C20', 'C100', 'STL10', 'TINY', 'IM224']
 
+loss_types = ['NCE', 'MOCO', 'SWAV', 'BYOL']
+
 
 def get_encoder_size(dataset_name):
     if dataset_name in training_datasets[:3]:
@@ -32,6 +34,13 @@ def get_dataset(dataset_name):
         return dataset_name
     raise KeyError("Unknown dataset '" + dataset_name + "'. Must be one of "
                    + ', '.join([name for name in training_datasets]))
+
+
+def get_loss_type(loss_type):
+    try:
+        return loss_types.index(loss_type.upper())
+    except ValueError:
+        raise ValueError("Error, unknown loss type: {}".format(loss_type))
 
 
 class Transforms:
@@ -63,7 +72,6 @@ class Transforms:
 
 def build_dataset(dataset, batch_size, nmb_workers, nmb_crops, size_crops, min_scale_crops, max_scale_crops, a=0,
                   path=None):
-
     if dataset == training_datasets[0]:
         num_classes = 10
         mu = [0.4914, 0.4822, 0.4465]

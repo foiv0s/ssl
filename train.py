@@ -4,7 +4,7 @@ import argparse
 import torch
 from logger import create_logger
 from utils import bool_flag
-from tools.datasets import build_dataset, get_dataset, get_encoder_size
+from tools.datasets import build_dataset, get_dataset, get_encoder_size, get_loss_type
 from model import Model
 from tools.checkpoint import Checkpointer
 from task_self_supervised import train_self_supervised
@@ -13,6 +13,7 @@ from task_classifiers import train_classifiers
 parser = argparse.ArgumentParser(description='Self-Labelling Siamese Networks')
 # parameters for general training stuff
 # --nmb_workers 0 --dataset c10 --loss_type 2 --encoder_mom 0.99 --lam 1 --size_crops 28
+
 parser.add_argument('--dataset', type=str, default='C10')
 parser.add_argument('--nmb_workers', type=int, default=8, help='Number of workers on Transformation process')
 parser.add_argument("--nmb_crops", type=int, default=[2], nargs="+",
@@ -73,14 +74,13 @@ def main():
     # torch.autograd.set_detect_anomaly(True)
     # get the dataset
     dataset = get_dataset(args.dataset)
+    loss_type = get_loss_type(args.loss_type)
     encoder_size = get_encoder_size(dataset)
 
     # get a helper object for tensorboard logging
     log_dir = os.path.join(args.output_dir, args.run_name + '.log')
     logger = create_logger(log_dir)
-    # stat_tracker = StatTracker(log_dir=log_dir)
     logger.info(args)
-    # get dataloaders for training and testing
     train_loader, test_loader, num_classes = \
         build_dataset(dataset=dataset, batch_size=args.batch_size, nmb_workers=args.nmb_workers,
                       nmb_crops=args.nmb_crops, size_crops=args.size_crops,
@@ -98,8 +98,8 @@ def main():
             # create new model with random parameters
             model = Model(n_classes=num_classes, encoder_size=encoder_size, prototypes=args.prototypes,
                           epoch=args.epochs, project_dim=args.project_dim, mom=args.encoder_mom, temp=args.temp,
-                          eps=args.eps, loss_type=args.loss_type, k_scale=args.k_scale, model_type=args.model_type,
-                          batch_mlp=args.batch, hidden_n=args.h, rbf=args.rbf, bank_n=args.bank_n, logger=logger)
+                          eps=args.eps, loss_type=loss_type, model_type=args.model_type, batch_mlp=args.batch,
+                          hidden_n=args.h, bank_n=args.bank_n, logger=logger)
             checkpointer.track_new_model(model)
 
     model = model.to(torch_device)
