@@ -1,7 +1,7 @@
 # This is a repository for implementing four basic self-supervised learning methods.
 
 ## Introduction
-**This is an implementation code written in Python (version 3.6.9) for the following self-supervised learning (SSL): <br>
+**This is an implementation code written in Python (version 3.6.9) written in PyTorch for the following self-supervised learning (SSL): <br>
 1) 'A Simple Framework for Contrastive Learning of Visual Representations'
    ([paper](https://arxiv.org/pdf/2002.05709.pdf))
 2) 'Momentum Contrast for Unsupervised Visual Representation Learning'
