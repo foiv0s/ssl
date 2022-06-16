@@ -70,8 +70,8 @@ class Transforms:
         return multi_crops, self.test_transform(inp)
 
 
-def build_dataset(dataset, batch_size, nmb_workers, nmb_crops, size_crops, min_scale_crops, max_scale_crops, a=0,
-                  path=None):
+def build_dataset(dataset, batch_size, nmb_workers, nmb_crops, size_crops,
+                  min_scale_crops, max_scale_crops, path=None, a=0):
     if dataset == training_datasets[0]:
         num_classes = 10
         mu = [0.4914, 0.4822, 0.4465]

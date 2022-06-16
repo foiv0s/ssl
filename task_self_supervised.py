@@ -16,29 +16,16 @@ import pickle
 
 
 def _train(model, optimizer, scheduler_inf, checkpointer, epochs,
-           train_loader, test_loader, stat_tracker, log_dir, device, nmb_crops, warmup, amp, lam):
+           train_loader, test_loader, stat_tracker, log_dir, device, nmb_crops, warmup, amp):
     '''
     Training loop for optimizing encoder
     '''
-    # If mixed precision is on, will add the necessary hooks into the model
-    # and optimizer for half() conversions
     mix_precision = MixedPrecision(amp)
     mix = mix_precision.get_precision()
 
-    # optimizer_disc = optim.Adam(model.discriminator.parameters(), betas=(0.8, 0.999), weight_decay=1e-5)
-    # get target LR for LR warmup -- assume same LR for all param groups
     lr_real = [optimizer.param_groups[i]['lr'] for i in range(len(optimizer.param_groups))]
     torch.cuda.empty_cache()
-    warmup_lam = 10
-    warmup_lam_schedule = np.linspace(0., lam, len(train_loader) * warmup_lam)
 
-    lam_schedule = np.concatenate((warmup_lam_schedule, np.ones(len(train_loader) * (epochs - warmup_lam))))
-    dec_lam = 40
-    lam_dec = np.linspace(lam, 1, len(train_loader) * dec_lam)
-
-    # warmup_ = warmup * len(train_loader)
-    # prepare checkpoint and stats accumulator
-    # init_warm = np.linspace(1, lam, len(train_loader) * warmup)
     next_epoch = checkpointer.get_current_position()
     if next_epoch == 0:
         checkpointer.track_new_optimizer(optimizer)
@@ -46,16 +33,7 @@ def _train(model, optimizer, scheduler_inf, checkpointer, epochs,
     else:
         optimizer = checkpointer.restore_optimizer_from_checkpoint(optimizer)
         total_updates = len(train_loader) * next_epoch
-        # scheduler_inf.step(total_updates)
     stat_tracker.info(model.encoder)
-    '''
-    for _, batch in enumerate(train_loader):
-        ((aug_imgs, imgs), labels, idxs) = batch
-        aug_imgs = [aug_img.to(device) for aug_img in aug_imgs]
-        model.init_membank(aug_imgs, idxs, train_loader.dataset.data.shape[0], nmb_crops=nmb_crops[0])
-    model.generate_lbls()
-    '''
-    # model.init_membank(train_loader.dataset.data.shape[0])
     tracker = {'train_acc': [], 'test_acc': [], 'zeros': [], '5_nn': [],
                '10_nn': [], '50_nn': [], '100_nn': [], '200_nn': [], '500_nn': []}
     for epoch in range(next_epoch, epochs):
@@ -65,11 +43,8 @@ def _train(model, optimizer, scheduler_inf, checkpointer, epochs,
         time_start1 = time.time()
         lbls, lbls_c = [], []
         model.step = epoch
-        # stat_tracker.info(model._lam)
-        # model.update_prototypes()
         for it, batch in enumerate(train_loader):
             ((aug_imgs, imgs), labels, idxs) = batch
-            # get data and info about this minibatch
             lbls.append(labels.numpy())
             labels = torch.cat([labels] * (nmb_crops[0])).to(device)
             aug_imgs = [aug_img.to(device) for aug_img in aug_imgs]
@@ -78,13 +53,12 @@ def _train(model, optimizer, scheduler_inf, checkpointer, epochs,
                 param_group["lr"] = scheduler_inf[iteration][j]
             # run forward pass through model to get global and local features
             with mix:
-                res_dict = model(x=aug_imgs, class_only=False, nmb_crops=nmb_crops, idxs=idxs)
+                res_dict = model(x=aug_imgs, class_only=False, nmb_crops=nmb_crops)
                 loss_cls = loss_xent(res_dict['class'], labels, clip=10)
-                loss_opt = loss_cls + res_dict['loss'] * lam + res_dict['swav']
+                loss_opt = loss_cls + res_dict['loss']
 
             optimizer.zero_grad()
             mix_precision.backward(loss_opt)
-
             mix_precision.step(optimizer)
 
             with torch.no_grad():
@@ -94,9 +68,7 @@ def _train(model, optimizer, scheduler_inf, checkpointer, epochs,
             lbls_c.append(res_dict['class'])
             # record loss and accuracy on minibatch
             epoch_stats.update_dict({'loss_cls': loss_cls.item(),
-                                     'swav': res_dict['swav'].item(),
                                      'loss': res_dict['loss'].item(),
-                                     'norm': res_dict['norm'].item(),
                                      'en_std': model.encoder.model.layer2[0].conv1.weight.std().item(),
                                      'en_max': torch.abs(model.encoder.model.layer2[0].conv1.weight).max().item(),
                                      'grd_2': torch.norm(model.encoder.model.layer2[0].conv1.weight.grad).item(),
@@ -122,7 +94,6 @@ def _train(model, optimizer, scheduler_inf, checkpointer, epochs,
                 fast_stats = AverageMeterSet()
                 test_model(model, test_loader, device, fast_stats, max_evals=100000,
                            warmup=False, stat_tracker=stat_tracker)
-                # stat_tracker.info(fast_stats.averages(total_updates, prefix='fast/'))
                 eval_time = time.time() - eval_start
                 stat_str = fast_stats.pretty_string()
                 stat_str = '-- {0:d} updates, eval_time {1:.2f}: {2:s}'.format(
@@ -138,10 +109,6 @@ def _train(model, optimizer, scheduler_inf, checkpointer, epochs,
             knn(model, train_loader, test_loader, tracker, stat_tracker=stat_tracker)
         epoch_str = epoch_stats.pretty_string()
         tracker['zeros'].append(epoch_stats.avgs['zeros'])
-        filename = log_dir + '/' + model.get_details(lam) + '.pkl'
-        outfile = open(filename, 'wb')
-        pickle.dump(tracker, outfile)
-        outfile.close()
         diag_str = 'Epoch {0:d}: {1:s}'.format(epoch, epoch_str)
         stat_tracker.info(diag_str)
         sys.stdout.flush()
@@ -149,8 +116,7 @@ def _train(model, optimizer, scheduler_inf, checkpointer, epochs,
 
 
 def train_self_supervised(model, learning_rate, train_loader, nmb_crops, test_loader, stat_tracker, checkpointer,
-                          log_dir, device, warmup, epochs, amp, lam, wd, larc_):
-
+                          log_dir, device, warmup, epochs, amp, wd, larc_):
     learning_rate = np.array(learning_rate)
     no_wd = list()
     wd_params = list()
@@ -164,20 +130,19 @@ def train_self_supervised(model, learning_rate, train_loader, nmb_crops, test_lo
             no_wd.append(m.weight)
             no_wd.append(m.bias)
     no_wd += list(model.prototypes.parameters())
-    for mods in model.info_modules:
+    for mods in model.mlp_modules:
         pro_wd += mods.parameters()
 
     optimizer = optim.SGD([{'params': wd_params, 'lr': learning_rate[0], 'weight_decay': wd[0]},
-                           {'params': no_wd, 'lr': learning_rate[1], 'weight_decay': wd[1], 'exclude_adapting': True},
+                           {'params': no_wd, 'lr': learning_rate[1], 'weight_decay': wd[1]},
                            {'params': pro_wd, 'lr': learning_rate[2], 'weight_decay': wd[2]},
-                           # {'params': list(all_params), 'lr': learning_rate[0], 'weight_decay': wd},
-                           {'params': model.evaluator.parameters(), 'lr': learning_rate[3], 'weight_decay': 0.,
-                            'exclude_adapting': True}],
+                           {'params': model.evaluator.parameters(), 'lr': learning_rate[3], 'weight_decay': 0.}],
                           momentum=0.9)
-    # '''
+
     if larc_:
         optimizer = LARS(optimizer, trust_coefficient=0.001, clip=False)
 
+    # Cosine lr
     final_lr = learning_rate * 1e-05
     lr = learning_rate
     warmup_lr_schedule = np.linspace(1e-10, learning_rate, len(train_loader) * warmup)
@@ -187,5 +152,4 @@ def train_self_supervised(model, learning_rate, train_loader, nmb_crops, test_lo
     scheduler = np.concatenate((warmup_lr_schedule, cosine_lr_schedule))
 
     _train(model, optimizer, scheduler, checkpointer, epochs,
-           train_loader, test_loader, stat_tracker, log_dir, device, nmb_crops, warmup, amp, lam)
-
+           train_loader, test_loader, stat_tracker, log_dir, device, nmb_crops, warmup, amp)

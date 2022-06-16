@@ -42,41 +42,10 @@ def test_model(model, test_loader, device, stats, max_evals=200000, warmup=True,
         y.append(labels[eval_idxs].cpu().numpy())
         correct_glb_lin += get_correct_count(res_dict['class'], labels)
         total += labels.size(0)
-        z.append(res_dict['emb'][[eval_idxs]].cpu().numpy())
-        h.append(res_dict['emb_'][[eval_idxs]].cpu().numpy())
+        z.append(res_dict['Z'][[eval_idxs]].cpu().numpy())
+        h.append(res_dict['h'][[eval_idxs]].cpu().numpy())
     acc_glb_lin = correct_glb_lin / total
     model.train()
-    '''
-    y, y_ = np.concatenate(y).ravel(), np.concatenate(y_).ravel()
-    z = np.concatenate(z)
-    z_ = PCA(n_components=20).fit_transform(z)
-    kmeans = KMeans(n_clusters=y.max() + 1, n_init=10)
-    lbls__ = kmeans.fit_predict(z_)  # [:10000]
-    stats.update('kmeans_accuracy', acc(y, lbls__), n=1)
-    
-    # record stats in the provided stat tracker
-    mu, std = [], []
-    for i in range(y.max() + 1):
-        idxs = np.where(y == i)
-        mu.append(z[idxs].mean(0)), std.append(z[idxs].std(0).sum())
-    mu = np.array(mu)
-    std = np.array(std)
-    aa = (mu ** 2).sum(-1, keepdims=True)
-    dist = (aa + aa.T - 2 * np.matmul(mu, mu.T))
-    stat_tracker.info('dist', dist.sum() / (dist.shape[0] * (dist.shape[0] - 1)), std.mean())
-    z = torch.from_numpy(z).cuda()
-    y = torch.from_numpy(y).cuda()
-    aa = (z ** 2).sum(-1, keepdims=True)
-    dist = - 2 * torch.matmul(z, z.T)
-    dist += aa
-    dist += aa.T
-    aa = dist.argsort(-1)
-    ss = {}
-    for i in [5, 50, 100, 200, 500]:
-        score = (y.reshape(-1, 1) == y[aa][:, 1:i + 1]).sum().item()
-        ss['score_' + str(i)] = score / (i * y.shape[0])
-    stat_tracker.info(ss)
-    '''
     stats.update('test_accuracy_linear_classifier', acc_glb_lin, n=1)
     return acc_glb_lin
 

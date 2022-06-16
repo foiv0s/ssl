@@ -11,7 +11,7 @@ from tools.costs import loss_xent
 
 
 def _train(model, optimizer, scheduler_inf, checkpointer, epochs,
-           train_loader, test_loader, stat_tracker, device, nmb_crops, lam):
+           train_loader, test_loader, stat_tracker, device, nmb_crops):
     torch.cuda.empty_cache()
 
     for epoch in range(epochs):
@@ -57,7 +57,7 @@ def _train(model, optimizer, scheduler_inf, checkpointer, epochs,
 
 
 def train_classifiers(model, learning_rate, train_loader, nmb_crops,
-                      test_loader, stat_tracker, checkpointer, log_dir, device, warmup, epochs, amp, lam, wd, larc_):
+                      test_loader, stat_tracker, checkpointer, log_dir, device, warmup, epochs, amp, wd, larc_):
     from graphs import MLPClassifier
     knn(model, train_loader, test_loader, stat_tracker=stat_tracker)
     model.evaluator = MLPClassifier(model.hyperparams['n_classes'], model.encoder.emb_dim, p=0.)
@@ -70,4 +70,4 @@ def train_classifiers(model, learning_rate, train_loader, nmb_crops,
     scheduler = CosineAnnealingLR(optimizer, epochs)
     model.encoder.eval()
     _train(model, optimizer, scheduler, checkpointer, epochs,
-           train_loader, test_loader, stat_tracker, device, nmb_crops, lam)
+           train_loader, test_loader, stat_tracker, device, nmb_crops)
