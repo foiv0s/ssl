@@ -98,12 +98,12 @@ class Projection(nn.Module):
 
         layers = []
         for i in range(h):
-            layers.append(SpectralNorm(nn.Linear(n_input, n_hidden, bias=False)))
+            layers.append(nn.Linear(n_input, n_hidden, bias=False))
             if batch:
                 layers.append(nn.BatchNorm1d(n_hidden, affine=True))
             layers.append(nn.ReLU(inplace=True))
             n_input = n_hidden
-        layers.append(SpectralNorm(nn.Linear(n_input, n_out, bias=False)))
+        layers.append(nn.Linear(n_input, n_out, bias=False))
         self.project = nn.Sequential(*layers)
 
         '''
