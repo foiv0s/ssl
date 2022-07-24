@@ -106,38 +106,6 @@ class Projection(nn.Module):
         layers.append(nn.Linear(n_input, n_out, bias=False))
         self.project = nn.Sequential(*layers)
 
-        '''
-        self.project = nn.Sequential(SpectralNorm(nn.Linear(n_input, n_hidden)),
-                                     #nn.BatchNorm1d(n_hidden, affine=True),
-                                     nn.ReLU(inplace=True),
-                                     # SpectralNorm(nn.Linear(n_hidden, n_hidden)),
-                                     # nn.BatchNorm1d(n_hidden, affine=True),
-                                     # nn.ReLU(inplace=True),
-                                     SpectralNorm(nn.Linear(n_hidden, n_out)))
-        # '''
-
-        '''
-        if batch is False:
-            for m in self.modules():
-                if isinstance(m, nn.Linear):
-                    # nn.init.kaiming_uniform_(m.weight, mode='fan_out', nonlinearity='relu')
-                    # nn.init.uniform_(m.weight, 0, 1 / np.sqrt(m.weight.shape[1]))
-                    nn.init.normal_(m.weight, 0, 1. / np.sqrt(m.weight.shape[1]))
-                    # nn.init.normal_(m.weight, 0, 0.1)
-                    # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                    nn.init.constant_(m.bias, 0)
-                    pass
-                # elif isinstance(m, nn.BatchNorm1d):
-                #    nn.init.constant_(m.weight, 1)
-                #    nn.init.constant_(m.bias, 0)
-        # '''
-        '''
-        self.u = []
-        for layer in self.project.modules():
-            if layer._get_name() == 'Linear':
-                self.u.append(torch.randn((1, layer.weight.shape[-1]), device='cuda', requires_grad=False))
-                pass
-        #'''
         return
 
     @staticmethod
